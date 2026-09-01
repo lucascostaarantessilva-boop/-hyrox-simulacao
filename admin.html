@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>HYROX Race Simulation • Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--bg:#080808;--panel:#111;--panel2:#171717;--text:#f5f5f5;--muted:#a8a8a8;--red:#ef2b2d;--green:#1fbf75;--border:#2d2d2d}
+*{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#050505,#101010);color:var(--text);font-family:Inter,Arial,sans-serif;min-height:100vh}
+.wrap{max-width:1200px;margin:auto;padding:20px} header{display:flex;gap:14px;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap}
+.brand h1{margin:0;font-size:clamp(28px,5vw,52px);line-height:.95;font-weight:950;letter-spacing:-1.5px}.brand h1 span{color:var(--red)}.brand p{margin:8px 0 0;color:var(--muted)}
+.card{background:rgba(17,17,17,.96);border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:0 14px 50px rgba(0,0,0,.3)}
+#loginCard{max-width:520px;margin:70px auto}label{display:block;font-size:12px;font-weight:800;color:#ddd;margin:12px 0 7px;text-transform:uppercase;letter-spacing:.5px}
+input,select{width:100%;background:#0b0b0b;color:#fff;border:1px solid #3a3a3a;border-radius:10px;padding:11px 12px;font-size:14px;outline:none}input:focus,select:focus{border-color:var(--red)}
+button{border:0;border-radius:11px;padding:11px 14px;font-weight:900;cursor:pointer}.primary{background:var(--red);color:#fff}.secondary{background:#252525;color:#fff;border:1px solid #3b3b3b}.danger{background:#431417;color:#ffb7b9;border:1px solid #6d2025}
+.actions{display:flex;gap:8px;flex-wrap:wrap}.msg{margin-top:12px;padding:10px 12px;border-radius:10px;display:none}.ok{display:block;background:#103a29;border:1px solid #1a774f;color:#bdf6d9}.err{display:block;background:#3a1114;border:1px solid #7b272c;color:#ffc4c6}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}.stat{background:#121212;border:1px solid var(--border);border-radius:14px;padding:15px}.stat b{font-size:27px;display:block}.stat span{color:var(--muted);font-size:12px}
+.toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:12px}.toolbar>div{min-width:150px;flex:1}.toolbar .actions{flex:0 0 auto}
+.tableWrap{overflow:auto;border:1px solid var(--border);border-radius:14px}table{border-collapse:collapse;width:100%;min-width:1250px;background:#0e0e0e}th,td{border-bottom:1px solid #252525;padding:10px;vertical-align:top;text-align:left}th{position:sticky;top:0;background:#171717;color:#ddd;font-size:11px;text-transform:uppercase;letter-spacing:.4px;z-index:1}td{font-size:13px}td input,td select{min-width:100px;padding:8px;font-size:13px}.tiny{min-width:70px!important;width:75px!important}.time{min-width:90px!important;width:95px!important}
+.rowActions{display:flex;gap:6px}.rowActions button{padding:8px 10px;font-size:12px}.hidden{display:none!important}.muted{color:var(--muted)}.pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#272727;font-size:11px;font-weight:800}.topRight{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+@media(max-width:700px){.wrap{padding:14px}.stats{grid-template-columns:repeat(2,1fr)}.topRight{width:100%}.topRight button{flex:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<section id="loginCard" class="card">
+<div class="brand"><h1>HYROX <span>ADMIN</span></h1><p>Área administrativa • Race Simulation</p></div>
+<label>E-mail autorizado</label>
+<input id="loginEmail" type="email" value="lucas.costa.arantes.silva@gmail.com" readonly>
+<button id="sendLink" class="primary" style="width:100%;margin-top:14px">ENVIAR LINK DE ACESSO</button>
+<div id="loginMsg" class="msg"></div>
+<p class="muted" style="font-size:12px;margin-top:14px">O acesso aos dados das duplas é liberado somente para este e-mail.</p>
+</section>
+
+<section id="dashboard" class="hidden">
+<header>
+<div class="brand"><h1>HYROX <span>ADMIN</span></h1><p>Inscrições • baterias • horários</p></div>
+<div class="topRight"><span id="userBadge" class="pill"></span><button id="refreshBtn" class="secondary">ATUALIZAR</button><button id="logoutBtn" class="secondary">SAIR</button></div>
+</header>
+
+<div class="stats">
+<div class="stat"><b id="countAll">0</b><span>Inscrições / 90</span></div>
+<div class="stat"><b id="countOpen">0</b><span>Open</span></div>
+<div class="stat"><b id="countPerf">0</b><span>Performance</span></div>
+<div class="stat"><b id="countFree">90</b><span>Vagas restantes</span></div>
+</div>
+
+<div class="card">
+<div class="toolbar">
+<div><label>Buscar</label><input id="searchBox" placeholder="Dupla, atleta ou WhatsApp"></div>
+<div><label>Categoria</label><select id="categoryFilter"><option value="">Todas</option><option>Open</option><option>Performance</option></select></div>
+<div><label>Status</label><select id="statusFilter"><option value="">Todos</option><option>Confirmada</option><option>Pendente</option><option>Cancelada</option></select></div>
+<div class="actions"><button id="autoBtn" class="primary">ORGANIZAR BATERIAS</button><button id="csvBtn" class="secondary">EXPORTAR CSV</button></div>
+</div>
+<div id="dashMsg" class="msg"></div>
+<div class="tableWrap">
+<table>
+<thead><tr><th>#</th><th>Dupla</th><th>Atleta 1</th><th>WhatsApp 1</th><th>Atleta 2</th><th>WhatsApp 2</th><th>Categoria</th><th>Bateria</th><th>Largada</th><th>Status</th><th>Inscrição</th><th>Ações</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+</section>
+</div>
+
+<script>
+const SUPABASE_URL='https://htillbyodkqbwaljnkpn.supabase.co';
+const SUPABASE_KEY='sb_publishable_uLKimNEVOk8YfPwz0u9ucg_HX3CWmN1';
+const ADMIN_EMAIL='lucas.costa.arantes.silva@gmail.com';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let registrations=[];
+const $=id=>document.getElementById(id);
+function showMsg(id,text,ok=true){const el=$(id);el.textContent=text;el.className='msg '+(ok?'ok':'err');if(ok)setTimeout(()=>{if(el.textContent===text)el.className='msg'},4500)}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+$('sendLink').onclick=async()=>{ $('sendLink').disabled=true;$('sendLink').textContent='ENVIANDO...';const {error}=await sb.auth.signInWithOtp({email:ADMIN_EMAIL,options:{emailRedirectTo:location.origin+'/admin.html',shouldCreateUser:true}});$('sendLink').disabled=false;$('sendLink').textContent='ENVIAR LINK DE ACESSO';if(error)showMsg('loginMsg','Não foi possível enviar o link: '+error.message,false);else showMsg('loginMsg','Link de acesso enviado. Abra seu e-mail e toque no link para entrar.')};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();location.reload()};
+$('refreshBtn').onclick=loadData;$('searchBox').oninput=render;$('categoryFilter').onchange=render;$('statusFilter').onchange=render;$('csvBtn').onclick=exportCSV;$('autoBtn').onclick=organizeHeats;
+
+async function init(){const {data:{user}}=await sb.auth.getUser();if(user&&(user.email||'').toLowerCase()===ADMIN_EMAIL){$('loginCard').classList.add('hidden');$('dashboard').classList.remove('hidden');$('userBadge').textContent=user.email;await loadData()}else{if(user)await sb.auth.signOut();$('loginCard').classList.remove('hidden');$('dashboard').classList.add('hidden')}}
+async function loadData(){const {data,error}=await sb.from('hyrox_registrations').select('id,created_at,team_name,athlete1,whatsapp1,athlete2,whatsapp2,category,heat,start_time,status').order('created_at',{ascending:true});if(error){showMsg('dashMsg','Erro ao carregar inscrições: '+error.message,false);return}registrations=data||[];updateStats();render()}
+function updateStats(){const active=registrations.filter(r=>r.status!=='Cancelada');$('countAll').textContent=registrations.length;$('countOpen').textContent=active.filter(r=>r.category==='Open').length;$('countPerf').textContent=active.filter(r=>r.category==='Performance').length;$('countFree').textContent=Math.max(0,90-active.length)}
+function filtered(){const q=$('searchBox').value.trim().toLowerCase(),cat=$('categoryFilter').value,st=$('statusFilter').value;return registrations.filter(r=>{const hay=[r.team_name,r.athlete1,r.whatsapp1,r.athlete2,r.whatsapp2].join(' ').toLowerCase();return(!q||hay.includes(q))&&(!cat||r.category===cat)&&(!st||r.status===st)})}
+function render(){const list=filtered();$('rows').innerHTML=list.map(r=>`<tr data-id="${r.id}"><td>${registrations.indexOf(r)+1}</td><td><input data-f="team_name" value="${esc(r.team_name)}"></td><td><input data-f="athlete1" value="${esc(r.athlete1)}"></td><td><input data-f="whatsapp1" value="${esc(r.whatsapp1)}"></td><td><input data-f="athlete2" value="${esc(r.athlete2)}"></td><td><input data-f="whatsapp2" value="${esc(r.whatsapp2)}"></td><td><select data-f="category"><option ${r.category==='Open'?'selected':''}>Open</option><option ${r.category==='Performance'?'selected':''}>Performance</option></select></td><td><input class="tiny" data-f="heat" type="number" min="1" value="${r.heat??''}"></td><td><input class="time" data-f="start_time" type="time" value="${esc(r.start_time||'')}"></td><td><select data-f="status"><option ${r.status==='Confirmada'?'selected':''}>Confirmada</option><option ${r.status==='Pendente'?'selected':''}>Pendente</option><option ${r.status==='Cancelada'?'selected':''}>Cancelada</option></select></td><td>${new Date(r.created_at).toLocaleString('pt-BR')}</td><td><div class="rowActions"><button class="primary" onclick="saveRow('${r.id}')">SALVAR</button><button class="danger" onclick="deleteRow('${r.id}')">EXCLUIR</button></div></td></tr>`).join('')}
+window.saveRow=async id=>{const tr=document.querySelector(`tr[data-id="${CSS.escape(String(id))}"]`),patch={};tr.querySelectorAll('[data-f]').forEach(el=>{let v=el.value.trim();if(el.dataset.f==='heat')v=v?Number(v):null;if(el.dataset.f==='start_time')v=v||null;patch[el.dataset.f]=v});const {error}=await sb.from('hyrox_registrations').update(patch).eq('id',id);if(error)showMsg('dashMsg','Erro ao salvar: '+error.message,false);else{showMsg('dashMsg','Alterações salvas.');await loadData()}};
+window.deleteRow=async id=>{if(!confirm('Excluir esta inscrição? Esta ação não pode ser desfeita.'))return;const {error}=await sb.from('hyrox_registrations').delete().eq('id',id);if(error)showMsg('dashMsg','Erro ao excluir: '+error.message,false);else{showMsg('dashMsg','Inscrição excluída.');await loadData()}};
+function addMinutes(hhmm,mins){const [h,m]=hhmm.split(':').map(Number),d=new Date(2000,0,1,h,m+mins);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+async function organizeHeats(){const active=registrations.filter(r=>r.status!=='Cancelada').sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));if(!active.length){showMsg('dashMsg','Não há inscrições para organizar.',false);return}if(!confirm(`Organizar ${active.length} duplas em baterias de 5, iniciando às 08:00, com intervalo de 20 minutos?`))return;$('autoBtn').disabled=true;$('autoBtn').textContent='ORGANIZANDO...';for(let i=0;i<active.length;i++){const heat=Math.floor(i/5)+1,start_time=addMinutes('08:00',(heat-1)*20);const {error}=await sb.from('hyrox_registrations').update({heat,start_time}).eq('id',active[i].id);if(error){showMsg('dashMsg','Erro ao organizar: '+error.message,false);$('autoBtn').disabled=false;$('autoBtn').textContent='ORGANIZAR BATERIAS';return}}$('autoBtn').disabled=false;$('autoBtn').textContent='ORGANIZAR BATERIAS';showMsg('dashMsg','Baterias e horários organizados.');await loadData()}
+function csvCell(v){const s=String(v??'');return'"'+s.replaceAll('"','""')+'"'}
+function exportCSV(){const header=['Nº','Data','Dupla','Atleta 1','WhatsApp 1','Atleta 2','WhatsApp 2','Categoria','Bateria','Largada','Status'];const rows=registrations.map((r,i)=>[i+1,new Date(r.created_at).toLocaleString('pt-BR'),r.team_name,r.athlete1,r.whatsapp1,r.athlete2,r.whatsapp2,r.category,r.heat??'',r.start_time??'',r.status]);const csv='﻿'+[header,...rows].map(row=>row.map(csvCell).join(';')).join('
+');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hyrox-inscricoes.csv';a.click();URL.revokeObjectURL(a.href)}
+sb.auth.onAuthStateChange(()=>setTimeout(init,0));init();
+</script>
+</body>
+</html>
