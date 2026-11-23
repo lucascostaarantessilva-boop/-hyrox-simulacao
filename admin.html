@@ -50,13 +50,20 @@ button{border:0;border-radius:11px;padding:11px 14px;font-weight:900;cursor:poin
 <div class="toolbar">
 <div><label>Buscar</label><input id="searchBox" placeholder="Dupla, atleta ou WhatsApp"></div>
 <div><label>Categoria</label><select id="categoryFilter"><option value="">Todas</option><option>Open</option><option>Performance</option></select></div>
-<div><label>Status</label><select id="statusFilter"><option value="">Todos</option><option>Confirmada</option><option>Pendente</option><option>Cancelada</option></select></div>
-<div class="actions"><button id="autoBtn" class="primary">ORGANIZAR BATERIAS</button><button id="csvBtn" class="secondary">EXPORTAR CSV</button></div>
+<div><label>Status</label><select id="statusFilter"><option value="">Todos</option><option>Pendente</option><option>Confirmada</option><option>Expirada</option><option>Revisar</option><option>Estornada</option></select></div>
+<div class="actions"><button id="csvBtn" class="secondary">EXPORTAR CSV</button></div>
 </div>
 <div id="dashMsg" class="msg"></div>
+<form id="settingsForm" style="margin: 16px 0">
+  <label for="eventStart">Primeira bateria (horário de Brasília)</label>
+  <input id="eventStart" type="datetime-local" required>
+  <label for="eventPrice">Valor por dupla (R$)</label>
+  <input id="eventPrice" type="number" min="1" max="10000" step="0.01" required>
+  <button class="secondary">Salvar configurações</button>
+</form>
 <div class="tableWrap">
 <table>
-<thead><tr><th>#</th><th>Dupla</th><th>Atleta 1</th><th>WhatsApp 1</th><th>Atleta 2</th><th>WhatsApp 2</th><th>Categoria</th><th>Bateria</th><th>Largada</th><th>Status</th><th>Inscrição</th><th>Ações</th></tr></thead>
+<thead><tr><th>#</th><th>Dupla</th><th>Atleta 1</th><th>WhatsApp 1</th><th>Atleta 2</th><th>WhatsApp 2</th><th>Categoria</th><th>Bateria</th><th>Largada</th><th>Status</th><th>Inscrição</th></tr></thead>
 <tbody id="rows"></tbody>
 </table>
 </div>
@@ -75,21 +82,64 @@ function showMsg(id,text,ok=true){const el=$(id);el.textContent=text;el.classNam
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 $('sendLink').onclick=async()=>{ $('sendLink').disabled=true;$('sendLink').textContent='ENVIANDO...';const {error}=await sb.auth.signInWithOtp({email:ADMIN_EMAIL,options:{emailRedirectTo:location.origin+'/admin.html',shouldCreateUser:true}});$('sendLink').disabled=false;$('sendLink').textContent='ENVIAR LINK DE ACESSO';if(error)showMsg('loginMsg','Não foi possível enviar o link: '+error.message,false);else showMsg('loginMsg','Link de acesso enviado. Abra seu e-mail e toque no link para entrar.')};
 $('logoutBtn').onclick=async()=>{await sb.auth.signOut();location.reload()};
-$('refreshBtn').onclick=loadData;$('searchBox').oninput=render;$('categoryFilter').onchange=render;$('statusFilter').onchange=render;$('csvBtn').onclick=exportCSV;$('autoBtn').onclick=organizeHeats;
+$('refreshBtn').onclick=loadData;$('searchBox').oninput=render;$('categoryFilter').onchange=render;$('statusFilter').onchange=render;$('csvBtn').onclick=exportCSV;
 
 async function init(){const {data:{user}}=await sb.auth.getUser();if(user&&(user.email||'').toLowerCase()===ADMIN_EMAIL){$('loginCard').classList.add('hidden');$('dashboard').classList.remove('hidden');$('userBadge').textContent=user.email;await loadData()}else{if(user)await sb.auth.signOut();$('loginCard').classList.remove('hidden');$('dashboard').classList.add('hidden')}}
-async function loadData(){const {data,error}=await sb.from('hyrox_registrations').select('id,created_at,team_name,athlete1,whatsapp1,athlete2,whatsapp2,category,heat,start_time,status').order('created_at',{ascending:true});if(error){showMsg('dashMsg','Erro ao carregar inscrições: '+error.message,false);return}registrations=data||[];updateStats();render()}
-function updateStats(){const active=registrations.filter(r=>r.status!=='Cancelada');$('countAll').textContent=registrations.length;$('countOpen').textContent=active.filter(r=>r.category==='Open').length;$('countPerf').textContent=active.filter(r=>r.category==='Performance').length;$('countFree').textContent=Math.max(0,90-active.length)}
-function filtered(){const q=$('searchBox').value.trim().toLowerCase(),cat=$('categoryFilter').value,st=$('statusFilter').value;return registrations.filter(r=>{const hay=[r.team_name,r.athlete1,r.whatsapp1,r.athlete2,r.whatsapp2].join(' ').toLowerCase();return(!q||hay.includes(q))&&(!cat||r.category===cat)&&(!st||r.status===st)})}
-function render(){const list=filtered();$('rows').innerHTML=list.map(r=>`<tr data-id="${r.id}"><td>${registrations.indexOf(r)+1}</td><td><input data-f="team_name" value="${esc(r.team_name)}"></td><td><input data-f="athlete1" value="${esc(r.athlete1)}"></td><td><input data-f="whatsapp1" value="${esc(r.whatsapp1)}"></td><td><input data-f="athlete2" value="${esc(r.athlete2)}"></td><td><input data-f="whatsapp2" value="${esc(r.whatsapp2)}"></td><td><select data-f="category"><option ${r.category==='Open'?'selected':''}>Open</option><option ${r.category==='Performance'?'selected':''}>Performance</option></select></td><td><input class="tiny" data-f="heat" type="number" min="1" value="${r.heat??''}"></td><td><input class="time" data-f="start_time" type="time" value="${esc(r.start_time||'')}"></td><td><select data-f="status"><option ${r.status==='Confirmada'?'selected':''}>Confirmada</option><option ${r.status==='Pendente'?'selected':''}>Pendente</option><option ${r.status==='Cancelada'?'selected':''}>Cancelada</option></select></td><td>${new Date(r.created_at).toLocaleString('pt-BR')}</td><td><div class="rowActions"><button class="primary" onclick="saveRow('${r.id}')">SALVAR</button><button class="danger" onclick="deleteRow('${r.id}')">EXCLUIR</button></div></td></tr>`).join('')}
-window.saveRow=async id=>{const tr=document.querySelector(`tr[data-id="${CSS.escape(String(id))}"]`),patch={};tr.querySelectorAll('[data-f]').forEach(el=>{let v=el.value.trim();if(el.dataset.f==='heat')v=v?Number(v):null;if(el.dataset.f==='start_time')v=v||null;patch[el.dataset.f]=v});const {error}=await sb.from('hyrox_registrations').update(patch).eq('id',id);if(error)showMsg('dashMsg','Erro ao salvar: '+error.message,false);else{showMsg('dashMsg','Alterações salvas.');await loadData()}};
-window.deleteRow=async id=>{if(!confirm('Excluir esta inscrição? Esta ação não pode ser desfeita.'))return;const {error}=await sb.from('hyrox_registrations').delete().eq('id',id);if(error)showMsg('dashMsg','Erro ao excluir: '+error.message,false);else{showMsg('dashMsg','Inscrição excluída.');await loadData()}};
-function addMinutes(hhmm,mins){const [h,m]=hhmm.split(':').map(Number),d=new Date(2000,0,1,h,m+mins);return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
-async function organizeHeats(){const active=registrations.filter(r=>r.status!=='Cancelada').sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));if(!active.length){showMsg('dashMsg','Não há inscrições para organizar.',false);return}if(!confirm(`Organizar ${active.length} duplas em baterias de 5, iniciando às 08:00, com intervalo de 20 minutos?`))return;$('autoBtn').disabled=true;$('autoBtn').textContent='ORGANIZANDO...';for(let i=0;i<active.length;i++){const heat=Math.floor(i/5)+1,start_time=addMinutes('08:00',(heat-1)*20);const {error}=await sb.from('hyrox_registrations').update({heat,start_time}).eq('id',active[i].id);if(error){showMsg('dashMsg','Erro ao organizar: '+error.message,false);$('autoBtn').disabled=false;$('autoBtn').textContent='ORGANIZAR BATERIAS';return}}$('autoBtn').disabled=false;$('autoBtn').textContent='ORGANIZAR BATERIAS';showMsg('dashMsg','Baterias e horários organizados.');await loadData()}
+
+const formatStart = new Intl.DateTimeFormat('pt-BR', {
+  timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit'
+});
+async function loadData(){
+  const [settingsResult, entriesResult] = await Promise.all([
+    sb.from('hyrox_december_settings').select('starts_at,price_cents').single(),
+    sb.from('hyrox_december_entries').select('id,created_at,expires_at,team_name,athlete1,whatsapp1,athlete2,whatsapp2,category,slot,status').order('created_at')
+  ]);
+  if (settingsResult.error || entriesResult.error) {
+    showMsg('dashMsg','Erro ao carregar os dados do simulado.',false);
+    return;
+  }
+  const settings = settingsResult.data;
+  const start = new Date(settings.starts_at);
+  $('eventStart').value = new Date(start.getTime() - 3 * 3600000).toISOString().slice(0, 16);
+  $('eventPrice').value = (settings.price_cents / 100).toFixed(2);
+  registrations = entriesResult.data.map(row => ({
+    ...row,
+    status: row.status === 'Pendente' && new Date(row.expires_at) <= new Date() ? 'Expirada' : row.status,
+    heat: row.slot ? Math.ceil(row.slot / 4) : null,
+    start_time: row.slot ? formatStart.format(start.getTime() + Math.floor((row.slot - 1) / 4) * 900000) : null
+  }));
+  const paid = registrations.filter(row => row.status === 'Confirmada');
+  $('countAll').textContent = paid.length;
+  $('countOpen').textContent = paid.filter(row => row.category === 'Open').length;
+  $('countPerf').textContent = paid.filter(row => row.category === 'Performance').length;
+  $('countFree').textContent = 60 - paid.length - registrations.filter(row => row.status === 'Pendente').length;
+  render();
+}
+$('settingsForm').onsubmit = async event => {
+  event.preventDefault();
+  const { error } = await sb.from('hyrox_december_settings').update({
+    starts_at: new Date($('eventStart').value + ':00-03:00').toISOString(),
+    price_cents: Math.round(Number($('eventPrice').value) * 100)
+  }).eq('singleton', true);
+  showMsg('dashMsg', error ? 'Erro ao salvar configurações.' : 'Configurações salvas.', !error);
+  if (!error) await loadData();
+};
+function render(){
+  const query = $('searchBox').value.trim().toLowerCase();
+  const category = $('categoryFilter').value;
+  const status = $('statusFilter').value;
+  $('rows').innerHTML = registrations.filter(row =>
+    (!category || row.category === category) && (!status || row.status === status) &&
+    [row.team_name,row.athlete1,row.whatsapp1,row.athlete2,row.whatsapp2].join(' ').toLowerCase().includes(query)
+  ).map(row => '<tr>' + [
+    registrations.indexOf(row) + 1, row.team_name, row.athlete1, row.whatsapp1, row.athlete2,
+    row.whatsapp2, row.category, row.heat, row.start_time, row.status
+  ].map(value => '<td>' + esc(value ?? '—') + '</td>').join('') + '</tr>').join('');
+}
 function csvCell(v){const s=String(v??'');return'"'+s.replaceAll('"','""')+'"'}
 function exportCSV(){const header=['Nº','Data','Dupla','Atleta 1','WhatsApp 1','Atleta 2','WhatsApp 2','Categoria','Bateria','Largada','Status'];const rows=registrations.map((r,i)=>[i+1,new Date(r.created_at).toLocaleString('pt-BR'),r.team_name,r.athlete1,r.whatsapp1,r.athlete2,r.whatsapp2,r.category,r.heat??'',r.start_time??'',r.status]);const csv='﻿'+[header,...rows].map(row=>row.map(csvCell).join(';')).join('
 ');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='hyrox-inscricoes.csv';a.click();URL.revokeObjectURL(a.href)}
+
 sb.auth.onAuthStateChange(()=>setTimeout(init,0));init();
 </script>
-</body>
-</html>
+</body></html>
