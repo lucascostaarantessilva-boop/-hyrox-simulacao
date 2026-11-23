@@ -48,7 +48,7 @@ declare
 begin
   if not exists (
     select 1 from hyrox_private.checkout_key
-      where fingerprint = encode(sha256(convert_to(checkout_key, 'UTF8')), 'hex')
+      where fingerprint = encode(sha256(convert_to($3, 'UTF8')), 'hex')
   ) then
     raise exception 'Unauthorized' using errcode = '42501';
   end if;
