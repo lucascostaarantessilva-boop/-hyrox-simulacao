@@ -13,14 +13,19 @@ async function rpc(op, args = {}) {
   return response.json();
 }
 
-async function mercadoPago(path, body) {
-  if (!process.env.MP_ACCESS_TOKEN?.startsWith('TEST-')) {
-    throw new Error('Missing Mercado Pago test credential');
+function previewToken() {
+  const token = process.env.MP_ACCESS_TOKEN;
+  if (process.env.VERCEL_ENV !== 'preview' || !token || !/^(APP_USR|TEST)-/.test(token)) {
+    throw new Error('Missing Mercado Pago preview credential');
   }
+  return token;
+}
+
+async function mercadoPago(path, body) {
   const response = await fetch('https://api.mercadopago.com' + path, {
     method: body ? 'POST' : 'GET',
     headers: {
-      Authorization: 'Bearer ' + process.env.MP_ACCESS_TOKEN,
+      Authorization: 'Bearer ' + previewToken(),
       'Content-Type': 'application/json',
     },
     body: body && JSON.stringify(body),
@@ -87,7 +92,8 @@ export default async function handler(req, res) {
 
     const entry = parseEntry(req.body);
     if (!entry) return res.status(400).json({ error: 'Confira os nomes, WhatsApps e categoria.' });
-    if (!process.env.MP_ACCESS_TOKEN?.startsWith('TEST-') || !process.env.VERCEL_URL) {
+    previewToken();
+    if (!process.env.VERCEL_URL) {
       throw new Error('Missing checkout configuration');
     }
     const order = await rpc('create', entry);
